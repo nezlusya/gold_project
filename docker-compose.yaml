@@ -1,6 +1,9 @@
 x-airflow-common:
   &airflow-common
-  image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.10.5}
+  build:
+    context: .
+    dockerfile: Dockerfile
+  #image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.10.5}
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
@@ -12,7 +15,7 @@ x-airflow-common:
     AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
     AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
     AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
-#    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-clickhouse-connect duckdb minio mlflow boto3}
+    # _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-clickhouse-connect duckdb minio mlflow boto3 pandas sqlalchemy requests}
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
     - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
@@ -27,9 +30,9 @@ x-airflow-common:
       condition: service_healthy
 
 services:
-  # ---------- PostgreSQL (для Airflow) ----------
+  # ---------- PostgreSQL (Airflow) ----------
   postgres:
-    image: postgres:14
+    image: postgres:13
     environment:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
@@ -45,7 +48,7 @@ services:
     ports:
       - "5432:5432"
 
-  # ---------- PostgreSQL DWH ----------
+  # ---------- PostgreSQL DWH (основное хранилище проекта) ----------
   postgres_dwh:
     image: postgres:14
     environment:
@@ -58,7 +61,7 @@ services:
     volumes:
       - postgres_dwh_data:/var/lib/postgresql/data
 
-  # ---------- Redis (Celery broker) ----------
+  # ---------- Redis ----------
   redis:
     image: redis:7.2-bookworm
     expose:
@@ -71,19 +74,88 @@ services:
       start_period: 30s
     restart: always
 
-  # ---------- Airflow (webserver, scheduler, worker, triggerer, init) ----------
+  # ---------- MinIO ----------
+  minio:
+    image: minio/minio:RELEASE.2023-07-07T07-13-57Z
+    restart: always
+    volumes:
+      - ./data:/data
+    environment:
+      - MINIO_ROOT_USER=minio
+      - MINIO_ROOT_PASSWORD=minio123
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  # ---------- ClickHouse ----------
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.8
+    container_name: clickhouse
+    ports:
+      - "8123:8123"
+      - "9004:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+
+  # ---------- MLflow ----------
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.8.1
+    container_name: mlflow
+    environment:
+      BACKEND_STORE_URI: postgresql://gold_user:gold_pass@postgres_dwh:5432/gold_db
+      ARTIFACT_ROOT: s3://mlflow/
+      AWS_ACCESS_KEY_ID: minio
+      AWS_SECRET_ACCESS_KEY: minio123
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+    ports:
+      - "5000:5000"
+    depends_on:
+      - postgres_dwh
+      - minio
+
+  # ---------- Apache Superset (BI) ----------
+  superset:
+    image: apache/superset:2.1.0
+    container_name: superset
+    environment:
+      - SUPERSET_SECRET_KEY=supersetsecretkey
+      - DATABASE_URL=postgresql://gold_user:gold_pass@postgres_dwh/gold_db
+    ports:
+      - "8088:8088"
+    depends_on:
+      - clickhouse
+      - postgres_dwh
+    volumes:
+      - superset_home:/app/superset_home
+
+  # ---------- Streamlit (frontend ML/аналитика) ----------
+  streamlit:
+    build: ./streamlit
+    container_name: streamlit
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./streamlit:/app
+    depends_on:
+      - postgres_dwh
+      - clickhouse
+      - minio
+    environment:
+      - POSTGRES_URL=postgresql://gold_user:gold_pass@postgres_dwh:5432/gold_db
+      - CLICKHOUSE_URL=http://clickhouse:8123
+      - MINIO_URL=http://minio:9000
+      - MINIO_ACCESS_KEY=minio
+      - MINIO_SECRET_KEY=minio123
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+
+
+  # ---------- Airflow (все компоненты) ----------
   airflow-webserver:
     <<: *airflow-common
     command: webserver
     ports:
       - "8081:8080"
-    healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    restart: always
     depends_on:
       <<: *airflow-common-depends-on
       airflow-init:
@@ -131,105 +203,8 @@ services:
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}:/sources
 
-  # ---------- MinIO ----------
-  minio:
-    image: minio/minio:RELEASE.2023-07-07T07-13-57Z
-    restart: always
-    volumes:
-      - minio_data:/data
-    environment:
-      - MINIO_ROOT_USER=minio
-      - MINIO_ROOT_PASSWORD=minio123
-    command: server /data --console-address ":9001"
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-
-  # ---------- ClickHouse ----------
-  clickhouse:
-    image: clickhouse/clickhouse-server:23.8
-    container_name: clickhouse
-    ports:
-      - "8123:8123"
-      - "9004:9000"
-    volumes:
-      - clickhouse_data:/var/lib/clickhouse
-
-  # ---------- MLflow ----------
-  mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.8.1
-    container_name: mlflow
-    environment:
-      BACKEND_STORE_URI: postgresql://gold_user:gold_pass@postgres_dwh:5432/gold_db
-      ARTIFACT_ROOT: s3://mlflow/
-      AWS_ACCESS_KEY_ID: minio
-      AWS_SECRET_ACCESS_KEY: minio123
-      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
-    ports:
-      - "5000:5000"
-    depends_on:
-      - postgres_dwh
-      - minio
-
-  # ---------- Apache Superset ----------
-  superset:
-    image: apache/superset:2.1.0
-    container_name: superset
-    environment:
-      - SUPERSET_SECRET_KEY=k9vF3jQ7LqZtA1Hc8yM4Nw+ePq7R0vUo
-      - DATABASE_URL=postgresql://gold_user:gold_pass@postgres_dwh/gold_db
-    ports:
-      - "8088:8088"
-    depends_on:
-      clickhouse:
-        condition: service_started
-      postgres_dwh:
-        condition: service_started
-      superset-init:
-        condition: service_completed_successfully
-    volumes:
-      - superset_home:/app/superset_home
-
-  superset-init:
-    image: apache/superset:2.1.0
-    container_name: superset-init
-    entrypoint: /bin/bash
-    command:
-      - -c
-      - |
-        superset fab create-admin --username admin --firstname Superset --lastname Admin --email admin@example.com --password admin123 &&
-        superset db upgrade &&
-        superset init
-    environment:
-      - SUPERSET_SECRET_KEY=supersetsecretkey
-      - DATABASE_URL=postgresql://gold_user:gold_pass@postgres/gold_db
-    depends_on:
-      - postgres
-
-
-  # ---------- Streamlit ----------
-  streamlit:
-    build: ./streamlit
-    container_name: streamlit
-    ports:
-      - "8501:8501"
-    volumes:
-      - ./streamlit:/app
-    depends_on:
-      - clickhouse
-      - postgres_dwh
-      - minio
-    environment:
-      - POSTGRES_URL=postgresql://gold_user:gold_pass@postgres_dwh:5432/gold_db
-      - CLICKHOUSE_URL=http://clickhouse:8123
-      - MINIO_URL=http://minio:9000
-      - MINIO_ACCESS_KEY=minio
-      - MINIO_SECRET_KEY=minio123
-      - MLFLOW_TRACKING_URI=http://mlflow:5000
-
 volumes:
   postgres-db-volume:
   postgres_dwh_data:
   clickhouse_data:
-  minio_data:
   superset_home:
