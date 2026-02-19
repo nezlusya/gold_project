@@ -1,0 +1,10 @@
+streamlit
+pandas
+sqlalchemy
+psycopg2-binary
+clickhouse-connect
+boto3
+mlflow
+plotly==5.19.0
+pandas==2.2.2
+prophet==1.1.6
