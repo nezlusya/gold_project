@@ -4,6 +4,8 @@ x-airflow-common:
     context: .
     dockerfile: Dockerfile
   #image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.10.5}
+  env_file:
+    - .env
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: CeleryExecutor
@@ -100,14 +102,22 @@ services:
 
   # ---------- MLflow ----------
   mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.8.1
+    build:
+      context: .
+      dockerfile: Dockerfile.mlflow
     container_name: mlflow
+    command: >
+      mlflow server
+      --backend-store-uri postgresql://gold_user:gold_pass@postgres_dwh:5432/gold_db
+      --default-artifact-root s3://mlflow/
+      --host 0.0.0.0
+      --port 5000
     environment:
-      BACKEND_STORE_URI: postgresql://gold_user:gold_pass@postgres_dwh:5432/gold_db
-      ARTIFACT_ROOT: s3://mlflow/
       AWS_ACCESS_KEY_ID: minio
       AWS_SECRET_ACCESS_KEY: minio123
       MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+    env_file:
+      - .env    
     ports:
       - "5000:5000"
     depends_on:
@@ -148,6 +158,8 @@ services:
       - MINIO_ACCESS_KEY=minio
       - MINIO_SECRET_KEY=minio123
       - MLFLOW_TRACKING_URI=http://mlflow:5000
+    env_file:
+      - .env   
 
 
   # ---------- Airflow (все компоненты) ----------
