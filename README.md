@@ -21,7 +21,6 @@
 
   <img width="800" alt="Работы программы" src="https://github.com/nezlusya/gold_project/blob/main/photo/mlflow experiments chart.png" />
 
-
   <img width="800" alt="Работы программы" src="https://github.com/nezlusya/gold_project/blob/main/photo/superset.png" />
 
 Проект построен по принципам:
@@ -105,6 +104,10 @@ PostgreSQL используется как:
 - Надёжность
 - ACID-гарантии
 
+<img width="800" alt="Работы программы" src="https://github.com/nezlusya/gold_project/blob/main/photo/streamlit 2.png" />
+
+<img width="800" alt="Работы программы" src="https://github.com/nezlusya/gold_project/blob/main/photo/pg.png" />
+
 ---
 
 ## 4 Аналитический слой (ClickHouse)
@@ -126,6 +129,13 @@ PostgreSQL используется как:
 - Быстрые группировки и временные срезы
 - Минимальная задержка ответа для визуализаций
 
+<img width="800" alt="Работы программы" src="https://github.com/nezlusya/gold_project/blob/main/photo/streamlit 3.png" />
+
+<img width="800" alt="Работы программы" src="https://github.com/nezlusya/gold_project/blob/main/photo/clickhouse monthly.png" />
+
+<img width="800" alt="Работы программы" src="https://github.com/nezlusya/gold_project/blob/main/photo/clickhouse monthly 2.png" />
+
+<img width="800" alt="Работы программы" src="https://github.com/nezlusya/gold_project/blob/main/photo/streamlit 4.png" />
 ---
 ## 5 Оркестрация (Airflow)
 
@@ -148,18 +158,22 @@ Airflow управляет:
 - Автоматизация всего пайплайна
 - Масштабируемость
 
+<img width="800" alt="Работы программы" src="https://github.com/nezlusya/gold_project/blob/main/photo/airflow dags.png" />
+
+<img width="800" alt="Работы программы" src="https://github.com/nezlusya/gold_project/blob/main/photo/dag dependencies.png" />
+
 ---
 
-## 6 Machine Learning Pipeline
+## 6 Machine Learning
 
 Реализован полноценный ML жизненный цикл.
 
 ### Что реализовано:
 
 - Обучение нескольких моделей:
-  - Linear Regression
-  - Random Forest
-  - (при необходимости Prophet)
+  - Скользящее среднее
+  - SARIMAX
+  - XGBoost
 - Разделение train/test
 - Вычисление метрик:
   - MAE
@@ -169,16 +183,16 @@ Airflow управляет:
 - Автоматический выбор лучшей модели
 - Регистрация модели в Model Registry
 
+<img width="800" alt="Работы программы" src="https://github.com/nezlusya/gold_project/blob/main/photo/forecast.png" />
 ---
 
 ## 7 MLflow (MLOps слой)
 
 MLflow используется для:
 
-- Tracking экспериментов
+- Отслеживание экспериментов
 - Хранения артефактов
-- Model Registry
-- Управления stage (Staging → Production)
+- Управления жизненным циклом
 
 ### Особенности реализации:
 
@@ -188,7 +202,9 @@ MLflow используется для:
 - Версионирование
 - Возможность отката к предыдущей версии
 
-Это приближает проект к реальным production ML системам.
+<img width="800" alt="Работы программы" src="https://github.com/nezlusya/gold_project/blob/main/photo/mlflow experiments.png" />
+
+<img width="800" alt="Работы программы" src="https://github.com/nezlusya/gold_project/blob/main/photo/mlflow production.png" />
 
 ---
 
@@ -201,6 +217,7 @@ MLflow используется для:
 - Сохраняет прогноз в postgres
 - Делает данные доступными для BI
 
+<img width="800" alt="Работы программы" src="https://github.com/nezlusya/gold_project/blob/main/photo/streamlit 6.png" />
 ---
 
 ## 9 BI слой (Superset)
