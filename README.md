@@ -104,7 +104,7 @@ PostgreSQL используется как:
 - Надёжность
 - ACID-гарантии
 
-<img width="800" alt="Работы программы" src="https://github.com/nezlusya/gold_project/blob/main/photo/streamlit 2.png" />
+<img width="800" alt="Работы программы" src="https://github.com/nezlusya/gold_project/blob/main/photo/sreamlit 2.png" />
 
 <img width="800" alt="Работы программы" src="https://github.com/nezlusya/gold_project/blob/main/photo/pg.png" />
 
@@ -136,7 +136,9 @@ PostgreSQL используется как:
 <img width="800" alt="Работы программы" src="https://github.com/nezlusya/gold_project/blob/main/photo/clickhouse monthly 2.png" />
 
 <img width="800" alt="Работы программы" src="https://github.com/nezlusya/gold_project/blob/main/photo/streamlit 4.png" />
+
 ---
+
 ## 5 Оркестрация (Airflow)
 
 Airflow управляет:
@@ -252,6 +254,7 @@ cd gold_project
 ## 2. Запустить инфраструктуру
 
 ```
+docker-compose up --build
 docker compose up -d
 ```
 
