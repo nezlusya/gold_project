@@ -19,6 +19,11 @@
 ## Пример работы
   <img width="800" alt="Работы программы" src="https://github.com/nezlusya/gold_project/blob/main/photo/streamlit 1.png" />
 
+  <img width="800" alt="Работы программы" src="https://github.com/nezlusya/gold_project/blob/main/photo/mlflow experiments chart.png" />
+
+
+  <img width="800" alt="Работы программы" src="https://github.com/nezlusya/gold_project/blob/main/photo/superset.png" />
+
 Проект построен по принципам:
 
 * Data Lake + DWH
