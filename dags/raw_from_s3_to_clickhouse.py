@@ -119,7 +119,7 @@ with DAG(
 
     wait_for_raw_layer = ExternalTaskSensor(
         task_id="wait_for_raw_layer",
-        external_dag_id="newdag",  # ждем DAG, который грузит в MinIO
+        external_dag_id="from_api_to_s3",  # ждем DAG, который грузит в MinIO
         allowed_states=["success"],
         mode="reschedule",
         timeout=36000,

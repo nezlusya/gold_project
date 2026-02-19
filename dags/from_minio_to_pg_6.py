@@ -10,13 +10,13 @@ from airflow.sensors.external_task import ExternalTaskSensor
 
 # --- Базовые параметры ---
 OWNER = "Luda"
-DAG_ID = "raw_from_s3_to_pg"
+DAG_ID = "from_minio_to_pg_6"
 
 # Источники и цели
 LAYER = "raw"
 SOURCE = "gold_price_cbr"
 SCHEMA = "ods"
-TARGET_TABLE = "gold_price_cbr"
+TARGET_TABLE = "gold_price_cbr_6"
 
 # Переменные из Airflow Variables
 ACCESS_KEY = Variable.get("access_key", default_var="minioadmin")
@@ -34,7 +34,7 @@ SHORT_DESCRIPTION = "Загрузка котировок золота из MinIO
 
 args = {
     "owner": OWNER,
-    "start_date": pendulum.datetime(1998, 1, 5, tz="Europe/Moscow"),
+    "start_date": pendulum.datetime(2025, 4, 5, tz="Europe/Moscow"),
     "catchup": True,
     "retries": 3,
     "retry_delay": pendulum.duration(minutes=30),
@@ -49,14 +49,13 @@ def get_dates(**context):
 
 def transfer_to_pg(**context):
     start_date, end_date = get_dates(**context)
-    logging.info(f"💻 Start transfer for dates: {start_date}/{end_date}")
+    logging.info(f"💻 Start transfer for date: {start_date}")
 
     con = duckdb.connect()
 
     # Настройка MinIO и PostgreSQL
     con.sql(f"""
         SET TIMEZONE='UTC';
-        INSTALL httpfs;
         LOAD httpfs;
         SET s3_url_style = 'path';
         SET s3_endpoint = 'minio:9000';
@@ -76,34 +75,40 @@ def transfer_to_pg(**context):
         ATTACH '' AS dwh_postgres_db (TYPE postgres, SECRET dwh_postgres);
     """)
 
-
-    # con.sql(f"""
-    #     INSERT INTO dwh_postgres_db.{SCHEMA}.{TARGET_TABLE} (date, buy_price, sell_price)
-    #     ('2022-01-02', 3000, 5000);
-    # """)
-
-
     try:
-        # Загружаем данные из MinIO и вставляем в PostgreSQL
+        # 1️⃣ Загружаем новые данные за дату из MinIO
         con.sql(f"""
-            INSERT INTO dwh_postgres_db.{SCHEMA}.{TARGET_TABLE} (date, buy_price, sell_price)
-            SELECT
-                date,
-                buy_price,
-                sell_price
+            CREATE OR REPLACE TEMP TABLE new_data AS
+            SELECT * 
             FROM 's3://prod/{LAYER}/{SOURCE}/{start_date}/data.parquet';
         """)
+
+        # 2️⃣ Удаляем из PostgreSQL записи старше 6 месяцев
+        con.sql(f"""
+            DELETE FROM dwh_postgres_db.{SCHEMA}.{TARGET_TABLE}
+            WHERE date < (CURRENT_DATE - INTERVAL '6 months');
+        """)
+
+        # 3️⃣ Вставляем новые данные (только актуальные)
+        con.sql(f"""
+            INSERT INTO dwh_postgres_db.{SCHEMA}.{TARGET_TABLE} (date, buy_price, sell_price)
+            SELECT date, buy_price, sell_price
+            FROM new_data
+            WHERE date >= (CURRENT_DATE - INTERVAL '6 months');
+        """)
+
+        logging.info(f"✅ Transfer success for date: {start_date}")
+
     except duckdb.duckdb.HTTPException:
-        print(f'file for {start_date} not found')
+        logging.warning(f"⚠️ File for {start_date} not found in MinIO")
     finally:
         con.close()
-    logging.info(f"✅ Transfer success for date: {start_date}")
 
 
 # --- DAG ---
 with DAG(
     dag_id=DAG_ID,
-    schedule_interval="0 5 * * *",  # после выгрузки newdag (через час)
+    schedule_interval="0 5 * * *",  # после выгрузки from_api_to_s3 (через час)
     default_args=args,
     tags=["s3", "ods", "pg"],
     description=SHORT_DESCRIPTION,
@@ -117,7 +122,7 @@ with DAG(
 
     wait_for_raw_layer = ExternalTaskSensor(
         task_id="wait_for_raw_layer",
-        external_dag_id="newdag",  # ждем DAG, который грузит в MinIO
+        external_dag_id="from_api_to_s3",  # ждем DAG, который грузит в MinIO
         allowed_states=["success"],
         mode="reschedule",
         timeout=36000,
@@ -130,5 +135,4 @@ with DAG(
     )
 
     end = EmptyOperator(task_id="end")
-    # start >> transfer_to_pg >> end
     start >> wait_for_raw_layer >> transfer_to_pg >> end

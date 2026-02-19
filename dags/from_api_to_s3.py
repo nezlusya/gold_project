@@ -12,7 +12,7 @@ import duckdb
 
 
 OWNER = "Luda"
-DAG_ID = "newdag"
+DAG_ID = "from_api_to_s3"
 
 LAYER = "raw"
 SOURCE = "gold_price_cbr"
